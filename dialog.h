@@ -1,6 +1,7 @@
 // Copyright(C) 2018 Kurata Sayuri. All rights reserved.
 #pragma once
 #include <type_traits>
+#include <unordered_map>
 #include <Windows.h>
 #include <windowsx.h>
 
@@ -14,6 +15,9 @@ class Resizable<Controls<anchorRight...>, Controls<anchorBottom...>, Controls<an
 	static const UINT flags = SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOSENDCHANGING | SWP_DEFERERASE | SWP_ASYNCWINDOWPOS;
 	SIZE minimum;
 	SIZE& current;
+	SIZE delta;
+	POINT dpi;
+	std::unordered_map<int, SIZE> stretchSizes;
 	static void OnSizeRight(HWND dialog, int id, LONG dx) {
 		auto control = GetDlgItem(dialog, id);
 		RECT r;
@@ -30,14 +34,22 @@ class Resizable<Controls<anchorRight...>, Controls<anchorBottom...>, Controls<an
 		ScreenToClient(dialog, &p);
 		SetWindowPos(control, 0, p.x, p.y + dy, 0, 0, SWP_NOSIZE | flags);
 	}
-	static void OnSizeStretch(HWND dialog, int id, LONG dx, LONG dy) {
+	static void OnSizeStretch(HWND dialog, int id, LONG dx, LONG dy, SIZE& prevSize) {
 		auto control = GetDlgItem(dialog, id);
+		if (prevSize.cx < 0)
+			dx += prevSize.cx;
+		if (prevSize.cy < 0)
+			dy += prevSize.cy;
 		RECT r;
 		GetWindowRect(control, &r);
-		SetWindowPos(control, 0, 0, 0, r.right - r.left + dx, r.bottom - r.top + dy, SWP_NOMOVE | flags);
+		LONG cx = r.right - r.left + dx, cy = r.bottom - r.top + dy;
+		SetWindowPos(control, 0, 0, 0, cx, cy, SWP_NOMOVE | flags);
+		prevSize = { cx, cy };
 	}
 public:
-	Resizable(SIZE& current) : minimum{}, current { current } {}
+	Resizable(SIZE& current) : minimum{}, current { current }, dpi { 96 * CalcPixelX(16) / 16, 96 * CalcPixelY(16) / 16 }, delta{}, stretchSizes{} {
+		(..., stretchSizes.emplace(anchorStretch, SIZE{}));
+	}
 	Resizable(SIZE&&) = delete;
 	void OnSize(HWND dialog, LONG cx, LONG cy) {
 		LONG dx = cx - current.cx, dy = cy - current.cy;
@@ -46,8 +58,9 @@ public:
 		if (dy != 0)
 			(..., OnSizeBottom(dialog, anchorBottom, dy));
 		if (dx != 0 || dy != 0)
-			(..., OnSizeStretch(dialog, anchorStretch, dx, dy));
+			(..., OnSizeStretch(dialog, anchorStretch, dx, dy, stretchSizes.at(anchorStretch)));
 		current = { cx, cy };
+		delta = { dx, dy };
 		InvalidateRect(dialog, nullptr, FALSE);
 	}
 	void OnSizing(HWND dialog, RECT* targetSize, int edge) {
@@ -64,6 +77,22 @@ public:
 				targetSize->bottom = targetSize->top + minimum.cy;
 		}
 		OnSize(dialog, targetSize->right - targetSize->left, targetSize->bottom - targetSize->top);
+	}
+	INT_PTR OnMessage(HWND dialog, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+		if (uMsg == WM_DPICHANGED) {
+			auto currentDpiX = HIWORD(wParam);
+			auto currentDpiY = LOWORD(wParam);
+			auto scaleChangeX = static_cast<double>(currentDpiX) / dpi.x;
+			auto scaleChangeY = static_cast<double>(currentDpiY) / dpi.y;
+			minimum = { static_cast<LONG>(minimum.cx * scaleChangeX), static_cast<LONG>(minimum.cy * scaleChangeY) };
+			auto targetSize = reinterpret_cast<RECT*>(lParam);
+			LONG cx = targetSize->right - targetSize->left, cy = targetSize->bottom - targetSize->top;
+			OnSize(dialog, cx - delta.cx, cy - delta.cy);
+			dpi = { currentDpiX, currentDpiY };
+			current = { cx, cy };
+			delta = {};
+		}
+		return 0;
 	}
 	void Initialize(HWND dialog) {
 		RECT r;
