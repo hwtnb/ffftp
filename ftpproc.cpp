@@ -436,6 +436,11 @@ struct MirrorList {
 			break;
 		}
 	}
+	INT_PTR OnMessage(HWND hDlg, UINT id, WPARAM wParam, LPARAM lParam) {
+		if (id == WM_DPICHANGED)
+			resizable.OnMessage(hDlg, id, wParam, lParam);
+		return 0;
+	}
 };
 
 /*----- ミラーリングダウンロードを行う ----------------------------------------
