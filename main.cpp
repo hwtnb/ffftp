@@ -1617,15 +1617,18 @@ static LRESULT CALLBACK FtpWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 			break;
 
 		case WM_DPICHANGED :
-			// Per-Monitor DPI対応
-			RevertToLogicalSizeOfAll();
-			UpdateDisplayDPI();
-			ConvertToPixelOfAll();
-			SetWindowPos(GetMainHwnd(), 0, WinPosX, WinPosY, WinWidth, WinHeight, SWP_NOACTIVATE | SWP_NOZORDER);
-			ResizeToolBarWindow();
-			ResizeWindowProc();
-			ResizeListColumns();
-			return DefWindowProcW(hWnd, message, wParam, lParam);
+			{
+				// Per-Monitor DPI対応
+				RevertToLogicalSizeOfAll();
+				UpdateDisplayDPI();
+				ConvertToPixelOfAll();
+				auto& windowRect = *reinterpret_cast<RECT*>(lParam);
+				SetWindowPos(GetMainHwnd(), 0, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, SWP_NOACTIVATE | SWP_NOZORDER);
+				ResizeToolBarWindow();
+				ResizeWindowProc();
+				ResizeListColumns();
+				return DefWindowProcW(hWnd, message, wParam, lParam);
+			}
 
 		default :
 			return DefWindowProcW(hWnd, message, wParam, lParam);
