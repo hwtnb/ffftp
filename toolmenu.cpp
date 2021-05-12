@@ -49,6 +49,8 @@ static HWND hWndDirLocal = NULL;
 static HWND hWndDirRemote = NULL;
 static HWND hWndDirLocalEdit = NULL;
 static HWND hWndDirRemoteEdit = NULL;
+static HBITMAP currentMainImage = NULL;
+static HBITMAP currentRemoteImage = NULL;
 static int TmpTransMode;
 static int TmpHostKanjiCode;
 static int TmpHostKanaCnv;
@@ -206,6 +208,27 @@ static auto CreateToolbar(DWORD ws, UINT id, int bitmaps, HBITMAP image, const T
 }
 
 
+static void ReloadToolbarIcons(HWND toolbar, HBITMAP oldImage, HBITMAP newImage, const TBBUTTON* buttons, int size) {
+	TBREPLACEBITMAP replacebitmap{ nullptr, (UINT_PTR)oldImage, nullptr, (UINT_PTR)newImage, size };
+	SendMessageW(toolbar, TB_REPLACEBITMAP, 0, (LPARAM)&replacebitmap);
+	SendMessageW(toolbar, TB_SETBITMAPSIZE, 0, MAKELPARAM(CalcPixelX(16), CalcPixelY(16)));
+	SendMessageW(toolbar, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
+}
+
+
+static void ResizeComboBox() {
+	auto font = (HFONT)SendMessageW(GetLocalHistEditHwnd(), WM_GETFONT, 0, 0);
+	LOGFONT logFont = {};
+	GetObjectW(font, sizeof(logFont), &logFont);
+	RECT rect;
+	SendMessageW(hWndTbarLocal, TB_GETITEMRECT, 3, (LPARAM)&rect);
+	logFont.lfHeight = rect.bottom - rect.top - CalcPixelY(8);
+	auto newFont = CreateFontIndirectW(&logFont);
+	SendMessageW(GetLocalHistHwnd(), WM_SETFONT, (WPARAM)newFont, MAKELPARAM(TRUE, 0));
+	SendMessageW(GetRemoteHistHwnd(), WM_SETFONT, (WPARAM)newFont, MAKELPARAM(TRUE, 0));
+}
+
+
 static std::tuple<HWND, HWND> CreateComboBox(HWND toolbar, DWORD style, int width, int menuId, bool isLocal, HFONT font) {
 	style |= WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | CBS_DROPDOWN | CBS_AUTOHSCROLL;
 	RECT rect;
@@ -231,7 +254,7 @@ bool MakeToolBarWindow() {
 	if (!mainImage)
 		return false;
 	auto remoteImage = GetImage(remote_toolbar_bmp);
-	if (!mainImage)
+	if (!remoteImage)
 		return false;
 	RECT rect;
 	GetClientRect(GetMainHwnd(), &rect);
@@ -259,6 +282,34 @@ bool MakeToolBarWindow() {
 		return false;
 	SendMessageW(hWndDirRemote, CB_SETCURSEL, 0, 0);
 
+	currentMainImage = mainImage;
+	currentRemoteImage = remoteImage;
+	return true;
+}
+
+
+// ツールバーをリサイズする（Per-Monitor DPI対応）
+bool ResizeToolBarWindow() {
+	auto newMainImage = GetImage(main_toolbar_bmp);
+	if (!newMainImage)
+		return false;
+	auto newRemoteImage = GetImage(remote_toolbar_bmp);
+	if (!newRemoteImage)
+		return false;
+
+	// main toolbar
+	ReloadToolbarIcons(GetMainTbarWnd(), currentMainImage, newMainImage, mainButtons, size_as<int>(mainButtons));
+	// local toolbar
+	ReloadToolbarIcons(GetLocalTbarWnd(), currentRemoteImage, newRemoteImage, localButtons, size_as<int>(localButtons));
+	// remote toolbar
+	ReloadToolbarIcons(GetRemoteTbarWnd(), currentRemoteImage, newRemoteImage, remoteButtons, size_as<int>(remoteButtons));
+
+	DeleteObject(currentMainImage);
+	DeleteObject(currentRemoteImage);
+	currentMainImage = newMainImage;
+	currentRemoteImage = newRemoteImage;
+
+	ResizeComboBox();
 	return true;
 }
 
