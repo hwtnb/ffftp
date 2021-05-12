@@ -222,7 +222,7 @@ static void ResizeComboBox() {
 	GetObjectW(font, sizeof(logFont), &logFont);
 	RECT rect;
 	SendMessageW(hWndTbarLocal, TB_GETITEMRECT, 3, (LPARAM)&rect);
-	logFont.lfHeight = rect.bottom - rect.top - CalcPixelY(8);
+	logFont.lfHeight = rect.bottom - rect.top - CalcPixelY(4);
 	auto newFont = CreateFontIndirectW(&logFont);
 	SendMessageW(GetLocalHistHwnd(), WM_SETFONT, (WPARAM)newFont, MAKELPARAM(TRUE, 0));
 	SendMessageW(GetRemoteHistHwnd(), WM_SETFONT, (WPARAM)newFont, MAKELPARAM(TRUE, 0));
@@ -267,7 +267,10 @@ bool MakeToolBarWindow() {
 	if (hWndTbarLocal = CreateToolbar(BTNS_GROUP, 2, 2, remoteImage, localButtons, size_as<int>(localButtons), 0, AskToolWinHeight(), LocalWidth, AskToolWinHeight()); !hWndTbarLocal)
 		return false;
 	SendMessageW(hWndTbarLocal, TB_GETITEMRECT, 3, (LPARAM)&rect);
-	auto font = CreateFontW(rect.bottom - rect.top - CalcPixelY(8), 0, 0, 0, 0, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, L"MS Shell Dlg");
+	NONCLIENTMETRICS metrics;
+	metrics.cbSize = sizeof(NONCLIENTMETRICS);
+	auto isSuccess = SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, 0, &metrics, 0);
+	auto font = CreateFontW(rect.bottom - rect.top - CalcPixelY(4), 0, 0, 0, 0, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, isSuccess ? metrics.lfMenuFont.lfFaceName : L"Segoe UI");
 	std::tie(hWndDirLocal, hWndDirLocalEdit) = CreateComboBox(hWndTbarLocal, CBS_SORT, LocalWidth, COMBO_LOCAL, true, font);
 	if (hWndDirLocal == NULL)
 		return false;

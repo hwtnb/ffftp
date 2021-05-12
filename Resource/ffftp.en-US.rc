@@ -11,11 +11,7 @@
 //
 #include "winres.h"
 #include <sdkddkver.h>
-#if _WIN32_WINNT_VISTA <= _WIN32_WINNT
 #define DIALOGFONT "Segoe UI"
-#else
-#define DIALOGFONT "MS Shell Dlg 2"
-#endif
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -40,11 +36,7 @@ END
 BEGIN
     "#include ""winres.h""\r\n"
     "#include <sdkddkver.h>\r\n"
-    "#if _WIN32_WINNT_VISTA <= _WIN32_WINNT\r\n"
     "#define DIALOGFONT ""Segoe UI""\r\n"
-    "#else\r\n"
-    "#define DIALOGFONT ""MS Shell Dlg 2""\r\n"
-    "#endif\0"
 END
 
 3 TEXTINCLUDE 
