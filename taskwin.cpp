@@ -79,6 +79,16 @@ int MakeTaskWindow() {
 }
 
 
+int ResizeTaskWindowFont() {
+	if (hWndTask == NULL)
+		return FFFTP_FAIL;
+
+	if (ListFont != NULL)
+		SendMessageW(hWndTask, WM_SETFONT, (WPARAM)ListFont, MAKELPARAM(TRUE, 0));
+	return FFFTP_SUCCESS;
+}
+
+
 // タスクウインドウを削除
 void DeleteTaskWindow() {
 	DestroyWindow(hWndTask);

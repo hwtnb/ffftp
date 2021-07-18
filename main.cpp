@@ -76,11 +76,14 @@ static void ExitProc(HWND hWnd);
 static void ChangeDir(int Win, std::wstring_view dir);
 static void ResizeWindowProc(void);
 static void CalcWinSize(void);
+static void ResizeListColumns();
 static void CheckResizeFrame(WPARAM Keys, int x, int y);
 static void DispDirInfo(void);
 static void DeleteAlltempFile();
 static void AboutDialog(HWND hWnd);
 static int EnterMasterPasswordAndSet(bool newpassword, HWND hWnd);
+static void ConvertToPixelOfAll();
+static void RevertToLogicalSizeOfAll();
 
 /*===== ローカルなワーク =====*/
 
@@ -369,17 +372,9 @@ static int InitApp(int cmdShow)
 	{
 		Accel = LoadAcceleratorsW(GetFtpInst(), MAKEINTRESOURCEW(ffftp_accel));
 
-		// 高DPI対応
-		WinWidth = CalcPixelX(WinWidth);
-		WinHeight = CalcPixelY(WinHeight);
-		LocalWidth = CalcPixelX(LocalWidth);
-		TaskHeight = CalcPixelY(TaskHeight);
-		for (auto& width : LocalTabWidthDefault)
-			width = CalcPixelX(width);
-		std::copy(std::begin(LocalTabWidthDefault), std::end(LocalTabWidthDefault), std::begin(LocalTabWidth));
-		for (auto& width : RemoteTabWidthDefault)
-			width = CalcPixelX(width);
-		std::copy(std::begin(RemoteTabWidthDefault), std::end(RemoteTabWidthDefault), std::begin(RemoteTabWidth));
+		// 高DPI（Per-Monitor DPI）対応
+		UpdateDisplayDPI();
+		ConvertToPixelOfAll();
 
 		std::vector<std::wstring_view> args{ __wargv + 1, __wargv + __argc };
 		if (auto it = std::find_if(begin(args), end(args), [](auto const& arg) { return ieq(arg, L"-n"sv) || ieq(arg, L"--ini"sv); }); it != end(args) && ++it != end(args)) {
@@ -560,8 +555,6 @@ static int InitApp(int cmdShow)
 static bool MakeAllWindows(int cmdShow) {
 	WNDCLASSEXW classEx{ sizeof(WNDCLASSEXW), 0, FtpWndProc, 0, 0, GetFtpInst(), LoadIconW(GetFtpInst(), MAKEINTRESOURCEW(ffftp)), 0, GetSysColorBrush(COLOR_3DFACE), MAKEINTRESOURCEW(main_menu), FtpClass };
 	RegisterClassExW(&classEx);
-
-	ToolWinHeight = CalcPixelY(16) + 12;
 
 	if (SaveWinPos == NO) {
 		WinPosX = CW_USEDEFAULT;
@@ -1560,6 +1553,20 @@ static LRESULT CALLBACK FtpWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 			}
 			break;
 
+		case WM_DPICHANGED :
+			{
+				// Per-Monitor DPI対応
+				RevertToLogicalSizeOfAll();
+				UpdateDisplayDPI();
+				ConvertToPixelOfAll();
+				auto& windowRect = *reinterpret_cast<RECT*>(lParam);
+				SetWindowPos(GetMainHwnd(), 0, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top, SWP_NOACTIVATE | SWP_NOZORDER);
+				ResizeToolBarWindow();
+				ResizeWindowProc();
+				ResizeListColumns();
+				return DefWindowProcW(hWnd, message, wParam, lParam);
+			}
+
 		default :
 			return DefWindowProcW(hWnd, message, wParam, lParam);
 	}
@@ -1861,9 +1868,9 @@ static void ResizeWindowProc(void)
 	SetWindowPos(GetLocalTbarWnd(), 0, 0, AskToolWinHeight(), LocalWidth, AskToolWinHeight(), SWP_NOACTIVATE | SWP_NOZORDER);
 	SetWindowPos(GetRemoteTbarWnd(), 0, LocalWidth + SepaWidth, AskToolWinHeight(), RemoteWidth, AskToolWinHeight(), SWP_NOACTIVATE | SWP_NOZORDER);
 	SendMessageW(GetLocalTbarWnd(), TB_GETITEMRECT, 3, (LPARAM)&Rect);
-	SetWindowPos(GetLocalHistHwnd(), 0, Rect.right, Rect.top, LocalWidth - Rect.right, 200, SWP_NOACTIVATE | SWP_NOZORDER);
+	SetWindowPos(GetLocalHistHwnd(), 0, Rect.right, Rect.top, LocalWidth - Rect.right, CalcPixelY(200), SWP_NOACTIVATE | SWP_NOZORDER);
 	SendMessageW(GetRemoteTbarWnd(), TB_GETITEMRECT, 3, (LPARAM)&Rect);
-	SetWindowPos(GetRemoteHistHwnd(), 0, Rect.right, Rect.top, RemoteWidth - Rect.right, 200, SWP_NOACTIVATE | SWP_NOZORDER);
+	SetWindowPos(GetRemoteHistHwnd(), 0, Rect.right, Rect.top, RemoteWidth - Rect.right, CalcPixelY(200), SWP_NOACTIVATE | SWP_NOZORDER);
 	SetWindowPos(GetLocalHwnd(), 0, 0, AskToolWinHeight()*2, LocalWidth, ListHeight, SWP_NOACTIVATE | SWP_NOZORDER);
 	SetWindowPos(GetRemoteHwnd(), 0, LocalWidth + SepaWidth, AskToolWinHeight()*2, RemoteWidth, ListHeight, SWP_NOACTIVATE | SWP_NOZORDER);
 	SetWindowPos(GetTaskWnd(), 0, 0, AskToolWinHeight()*2+ListHeight+SepaWidth, ClientWidth, TaskHeight, SWP_NOACTIVATE | SWP_NOZORDER);
@@ -1903,6 +1910,26 @@ static void CalcWinSize(void)
 	GetClientRect(GetSbarWnd(), &Rect);
 
 	ListHeight = std::max(0L, ClientHeight - AskToolWinHeight() * 2 - TaskHeight - SepaWidth - Rect.bottom);
+}
+
+
+/*----- ファイルリストのカラムサイズ変更の処理 ------------------------------------------
+*
+*	Parameter
+*		なし
+*
+*	Return Value
+*		なし
+*----------------------------------------------------------------------------*/
+
+static void ResizeListColumns()
+{
+	auto localListWindow = GetLocalHwnd();
+	for (auto i = 0; i < std::size(LocalTabWidth); i++)
+		ListView_SetColumnWidth(localListWindow, i, LocalTabWidth[i]);
+	auto remoteListWindow = GetRemoteHwnd();
+	for (auto i = 0; i < std::size(RemoteTabWidth); i++)
+		ListView_SetColumnWidth(remoteListWindow, i, RemoteTabWidth[i]);
 }
 
 
@@ -2264,6 +2291,36 @@ void UpdateTaskbarProgress() {
 int AskToolWinHeight(void)
 {
 	return(ToolWinHeight);
+}
+
+// 高DPI（Per-Monitor DPI）対応
+static void ConvertToPixelOfAll() {
+	WinWidth = CalcPixelX(WinWidth);
+	WinHeight = CalcPixelY(WinHeight);
+	LocalWidth = CalcPixelX(LocalWidth);
+	TaskHeight = CalcPixelY(TaskHeight);
+	for (auto& width : LocalTabWidthDefault)
+		width = CalcPixelX(width);
+	std::copy(std::begin(LocalTabWidthDefault), std::end(LocalTabWidthDefault), std::begin(LocalTabWidth));
+	for (auto& width : RemoteTabWidthDefault)
+		width = CalcPixelX(width);
+	std::copy(std::begin(RemoteTabWidthDefault), std::end(RemoteTabWidthDefault), std::begin(RemoteTabWidth));
+	ToolWinHeight = CalcPixelY(16) + 12;
+}
+
+// 高DPI（Per-Monitor DPI）対応
+static void RevertToLogicalSizeOfAll() {
+	WinWidth = CalcLogicalX(WinWidth);
+	WinHeight = CalcLogicalY(WinHeight);
+	LocalWidth = CalcLogicalX(LocalWidth);
+	TaskHeight = CalcLogicalY(TaskHeight);
+	for (auto& width : LocalTabWidthDefault)
+		width = CalcLogicalX(width);
+	std::copy(std::begin(LocalTabWidthDefault), std::end(LocalTabWidthDefault), std::begin(LocalTabWidth));
+	for (auto& width : RemoteTabWidthDefault)
+		width = CalcLogicalX(width);
+	std::copy(std::begin(RemoteTabWidthDefault), std::end(RemoteTabWidthDefault), std::begin(RemoteTabWidth));
+	ToolWinHeight = 16 + 12;
 }
 
 int MainThreadRunner::Run() {

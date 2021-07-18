@@ -77,6 +77,7 @@
 #include <mstcpip.h>
 #include <ntstatus.h>
 #include <shellapi.h>
+#include <shellscalingapi.h>
 #include <ShlObj.h>
 #include <Shlwapi.h>
 #include <ShObjIdl.h>
@@ -100,6 +101,7 @@ template<class T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 template<class...>
 constexpr bool false_v = false;
+using GetDpiForMonitorFunc = HRESULT(_stdcall*)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*);
 
 enum class FileType : UINT {
 	All = IDS_FILETYPE_ALL,
@@ -663,6 +665,7 @@ void doDeleteRemoteFile(void);
 /*===== toolmenu.c =====*/
 
 bool MakeToolBarWindow();
+bool ResizeToolBarWindow();
 void DeleteToolBarWindow(void);
 HWND GetMainTbarWnd(void);
 HWND GetLocalHistHwnd(void);
@@ -731,6 +734,7 @@ bool NotifyStatusBar(const NMHDR* hdr);
 /*===== taskwin.c =====*/
 
 int MakeTaskWindow();
+int ResizeTaskWindowFont();
 void DeleteTaskWindow(void);
 HWND GetTaskWnd(void);
 void DispTaskMsg(void);
@@ -1052,8 +1056,11 @@ fs::path MakeDistinguishableFileName(fs::path&& path);
 #if defined(HAVE_TANDEM)
 void CalcExtentSize(TRANSPACKET *Pkt, LONGLONG Size);
 #endif
+void UpdateDisplayDPI();
 int CalcPixelX(int x);
 int CalcPixelY(int y);
+int CalcLogicalX(int pixelX);
+int CalcLogicalY(int pixelY);
 
 /*===== opie.c =====*/
 

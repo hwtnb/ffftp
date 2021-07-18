@@ -244,16 +244,27 @@ void CalcExtentSize(TRANSPACKET *Pkt, LONGLONG Size)
 }
 #endif
 
-static auto QueryDisplayDPI() {
-	static auto dpi = [] {
+static std::tuple<int, int> dpi{ 0, 0 };
+void UpdateDisplayDPI() {
+	static auto shcore = LoadLibraryW(L"Shcore.dll");
+	static auto getDpiForMonitor = reinterpret_cast<GetDpiForMonitorFunc>(GetProcAddress(shcore, "GetDpiForMonitor"));
+	if (getDpiForMonitor) {
+		UINT x = 0U, y = 0U;
+		auto currentMonitor = MonitorFromWindow(GetMainHwnd(), MONITOR_DEFAULTTONEAREST);
+		getDpiForMonitor(currentMonitor, MDT_EFFECTIVE_DPI, &x, &y);
+		dpi = std::tuple<int, int>{ static_cast<int>(x), static_cast<int>(y) };
+	} else {
 		int x = 0, y = 0;
 		if (auto dc = GetDC(0)) {
 			x = GetDeviceCaps(dc, LOGPIXELSX);
 			y = GetDeviceCaps(dc, LOGPIXELSY);
-			ReleaseDC(0, dc);
+			DeleteDC(dc);
 		}
-		return std::tuple<int, int>{ x, y };
-	}();
+		dpi = std::tuple<int, int>{ x, y };
+	}
+}
+
+static auto QueryDisplayDPI() {
 	return dpi;
 }
 
@@ -265,4 +276,14 @@ int CalcPixelX(int x) {
 int CalcPixelY(int y) {
 	auto [_, dpiy] = QueryDisplayDPI();
 	return (y * dpiy + 96 / 2) / 96;
+}
+
+int CalcLogicalX(int pixelX) {
+	auto [dpix, _] = QueryDisplayDPI();
+	return (pixelX * 96 + 96 / 2) / dpix;
+}
+
+int CalcLogicalY(int pixelY) {
+	auto [_, dpiy] = QueryDisplayDPI();
+	return (pixelY * 96 + 96 / 2) / dpiy;
 }
