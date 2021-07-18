@@ -73,6 +73,14 @@ int MakeTaskWindow() {
 	SendMessageW(hWndTask, EM_LIMITTEXT, 0x7fffffff, 0);
 	if (ListFont != NULL)
 		SendMessageW(hWndTask, WM_SETFONT, (WPARAM)ListFont, MAKELPARAM(TRUE, 0));
+	else {
+		NONCLIENTMETRICS metrics;
+		metrics.cbSize = sizeof(NONCLIENTMETRICS);
+		auto isSuccess = SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, 0, &metrics, 0);
+		auto defaultFont = CreateFontW(CalcPixelY(18), 0, 0, 0, 0, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, isSuccess ? metrics.lfMenuFont.lfFaceName : L"Segoe UI");
+		SendMessageW(hWndTask, WM_SETFONT, (WPARAM)defaultFont, MAKELPARAM(TRUE, 0));
+		DeleteObject(defaultFont);
+	}
 	SetTimer(hWndTask, 1, USER_TIMER_MINIMUM, Writer);
 	ShowWindow(hWndTask, SW_SHOW);
 	return FFFTP_SUCCESS;
@@ -85,6 +93,14 @@ int ResizeTaskWindowFont() {
 
 	if (ListFont != NULL)
 		SendMessageW(hWndTask, WM_SETFONT, (WPARAM)ListFont, MAKELPARAM(TRUE, 0));
+	else {
+		NONCLIENTMETRICS metrics;
+		metrics.cbSize = sizeof(NONCLIENTMETRICS);
+		auto isSuccess = SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, 0, &metrics, 0);
+		auto defaultFont = CreateFontW(CalcPixelY(18), 0, 0, 0, 0, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, isSuccess ? metrics.lfMenuFont.lfFaceName : L"Segoe UI");
+		SendMessageW(hWndTask, WM_SETFONT, (WPARAM)defaultFont, MAKELPARAM(TRUE, 0));
+		DeleteObject(defaultFont);
+	}
 	return FFFTP_SUCCESS;
 }
 
